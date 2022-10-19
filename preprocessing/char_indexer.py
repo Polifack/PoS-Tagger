@@ -1,5 +1,12 @@
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+from keras import layers
+from sklearn.model_selection import train_test_split
+from keras.utils.np_utils import to_categorical
+import matplotlib.pyplot as plt
 
-def character_indexer(sentences, chars, max_len, max_len_char):
+def index_characters(sentences, chars, max_len, max_len_char):
     # create character to index dictionary
     char2idx = {c: i + 2 for i, c in enumerate(chars)}
     char2idx["UNK"] = 1
@@ -24,5 +31,5 @@ def character_indexer(sentences, chars, max_len, max_len_char):
             sent_seq.append(word_seq)
         x_char.append(np.array(sent_seq))
 
-    return np.asarray(x), char2idx
+    return np.asarray(x_char), char2idx
     

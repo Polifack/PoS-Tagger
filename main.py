@@ -2,7 +2,7 @@ from utilities.reader import *
 from preprocessing.categorize_tokenizer import tokenize_categories
 from preprocessing.text_tokenizer import tokenize_sentences
 from preprocessing.text_vectorizer import create_text_vector_layer
-from preprocessing.char_indexer import character_indexer
+from preprocessing.char_indexer import index_characters
 from models.tagger import SeqTagger
 
 import numpy as np
@@ -35,7 +35,7 @@ if __name__=="__main__":
     parser.add_argument('--wordl', metavar="word_length", required=False, default=20,
                         help="Max length of words allowed")
 
-    parser.add_argument('--mode', metavar="word_mode", required=False, choices=['vec','tok'], default='tok',
+    parser.add_argument('--wmode', metavar="word_mode", required=False, choices=['vec','tok'], default='tok',
                         help='Pre-processing mode of the input text. Could be vectorizer (vec) or tokenizer (tok).')
 
     parser.add_argument('--charemb', required=False, default=True, action='store_true', 
@@ -45,6 +45,7 @@ if __name__=="__main__":
                         help='Flag to measure decoding time.')
 
     args = parser.parse_args()
+    print(args)
 
     if args.time:
         start_time=time.time()
@@ -64,13 +65,12 @@ if __name__=="__main__":
     print("[*] Extracting upos... ",end="\r")
     postags = [dt.get_upos() for dt in treebank]
     print("[*] Extracting upos: Done")
-
-    # Extract dataset characteristics
-    words = set([word for sentence in X for word in sentence])
+   
+    words = set([word for sentence in sentences for word in sentence.split(" ")])
     n_words = len(words)
-    print("[*] Number of words:",n_words,"; max_length=",max_len_words)
+    print("[*] Number of words:",n_words)
 
-    tags = set([word for sentence in Y for word in sentence])
+    tags = set([word for sentence in postags for word in sentence])
     n_tags = len(tags)
     print("[*] Number of tags:",n_tags)
 
@@ -80,27 +80,28 @@ if __name__=="__main__":
 
     # Pre-process data
     print("[*] Converting upos to categories... ",end="\r")
-    y, cat_tokenizer = tokenize_categories(postags, args.sent_length)
+    y, cat_tokenizer = tokenize_categories(postags, args.sentl)
     print("[*] Converting upos to categories: Done")
 
 
-    if args.word_mode == 'tok':
+    if args.wmode == 'tok':
         print("[*] Tokenizing input sentences... ",end="\r")
-        x_words, words_tokenizer = tokenize_text(sentences, args.sent_length)
+        x_words, words_tokenizer = tokenize_sentences(sentences, args.sentl)
         print("[*] Tokenizing input sentences: Done")
 
-    elif args.word_mode =='vec':
+    elif args.wmode =='vec':
         print("[*] Creating vector layer... ",end="\r")
-        word_vectorizer = create_text_vector_layer(sentences, args.sent_length)
+        word_vectorizer = create_text_vector_layer(sentences, args.sentl)
         print("[*] Creating vector layer: Done")
     
     if args.charemb:
         print("[*] Setting characters as indexes... ",end="\r")
-        x_chars, char2idx = index_characters(sentences, chars, args.sent_length, args.word_length)
+        x_chars, char2idx = index_characters(sentences, chars, args.sentl, args.wordl)
         print("[*] Setting characters as indexes: Done")
 
 
     # Create model
+    print("[*] Creating seq2seq model...")
 
 
     if args.time:
