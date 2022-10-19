@@ -1,21 +1,24 @@
 from conllu import parse_tree_incr
 from models.conll_node import ConllNode
+from models.dependency_tree import DependencyTree
 
 def parse_conllu(in_file):
     '''
     Given an input CONLL file parses it and returns the Dependency Trees
     in the form of a list of ConllNodes
     '''
-    conll_node_list=[]
     
-    for token_tree in parse_tree_incr(in_file):
-        nodes = []
-        postags = []
-        words = []
-        
-        nodes.append(ConllNode.dummy_root())
+    treebank = []
+    in_file = open(in_file)
+
+    for i, token_tree in enumerate(parse_tree_incr(in_file)):
+        print("[*] Reading conll-U "+str(i), end="\r")
+
+        dt = DependencyTree()
         data = token_tree.serialize().split('\n')
         dependency_start_idx = 0
+
+        # skip info lines
         for line in data:
             if line[0]!="#":
                 break
@@ -25,14 +28,13 @@ def parse_conllu(in_file):
         
         data = data[dependency_start_idx:]
 
+        # data lines
         for line in data:
             # check if not valid line
             if (len(line)<=1) or len(line.split('\t'))<10 or line[0] == "#":
                 continue
-            
-            conll_node = ConllNode.from_string(line)
-            nodes.append(conll_node)
-        
-        conll_node_list.append(nodes)
+            dt.append_string(line)
+        treebank.append(dt)
     
-    return conll_node_list
+    print("[*] Reading conll-U",i,": Done")
+    return treebank

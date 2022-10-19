@@ -1,12 +1,14 @@
 # create conda virtual enviroment and activate it
 echo "[*] Creating Conda VENV"
-conda create -n pos_tagger python=3.8
+conda create -n pos_tagger
 conda activate pos_tagger
 
 # install python libraries
 echo "[*] Installing Python libraries"
-pip install tensorflow
-pip install keras
-pip install conllu
+python -m pip install tensorflow
+python -m pip install keras
+python -m pip install conllu
+python -m pip install scikit-learn
+python -m pip install matplotlib
 
 echo "[*] All done"

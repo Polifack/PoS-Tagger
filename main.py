@@ -1,17 +1,26 @@
-from encs.dependency import encode_dependencies, decode_dependencies
-from encs.constituent import encode_constituent, decode_constituent
-from utils.constants import *
+from utilities.reader import * 
+from preprocessing.categorize_tokenizer import tokenize_categories
+from preprocessing.text_tokenizer import tokenize_sentences
+from preprocessing.text_vectorizer import create_text_vector_layer
+from preprocessing.char_indexer import character_indexer
+from models.tagger import SeqTagger
+
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+from keras import layers
+from sklearn.model_selection import train_test_split
+from keras.utils.np_utils import to_categorical
+import matplotlib.pyplot as plt
 
 import argparse
 import time
 
 if __name__=="__main__":
 
-    encodings = [C_ABSOLUTE_ENCODING, C_RELATIVE_ENCODING, C_DYNAMIC_ENCODING, 
-                D_ABSOLUTE_ENCODING, D_RELATIVE_ENCODING, D_POS_ENCODING, D_BRACKET_ENCODING, D_BRACKET_ENCODING_2P]
-
-    parser = argparse.ArgumentParser(description='Constituent and Dependencies Linearization System')
-    parser.add_argument('operation', metavar='op',type=str, choices=[OP_TRAIN, OP_PRED],
+    parser = argparse.ArgumentParser(description='PoS tagger')
+    
+    parser.add_argument('operation', metavar='op',type=str, choices=["train", "predict"],
                         help='Operation mode of the system.')
 
     parser.add_argument('input', metavar='in file', type=str,
@@ -20,28 +29,79 @@ if __name__=="__main__":
     parser.add_argument('output', metavar='out file', type=str,
                         help='Path of the output folder where to store the model in training mode or path to store the predicted text file')
 
-    parser.add_argument('--config', metavar="config", required=False, 
-                        help='Path of the config file specifying the architecture of the sequence labeller')
+    parser.add_argument('--sentl', metavar="sent_length", required=False, default=128, 
+                        help="Max length of sentence allowed")
+
+    parser.add_argument('--wordl', metavar="word_length", required=False, default=20,
+                        help="Max length of words allowed")
+
+    parser.add_argument('--mode', metavar="word_mode", required=False, choices=['vec','tok'], default='tok',
+                        help='Pre-processing mode of the input text. Could be vectorizer (vec) or tokenizer (tok).')
+
+    parser.add_argument('--charemb', required=False, default=True, action='store_true', 
+                        help='Use character embeddings layer')
             
     parser.add_argument("--time", action='store_true', required=False, 
                         help='Flag to measure decoding time.')
-
-    parser.add_argument('--feats', metavar="features", nargs='+', default=None,
-                        help='Train ONLY: Set of additional features to add to the training', required=False)
 
     args = parser.parse_args()
 
     if args.time:
         start_time=time.time()
-
-    ##
-    ## main operation
-    if args.operation == OP_TRAIN:
-        n_tokens, n_sentences = train
     
-    elif args.operation == OP_PRED:
-        n_tokens, n_sentences = predict(args.input, args.output)
-    ##
+    print("+-------------------------+")
+    # print data about system
+
+
+    # Read treebank and extract relevant information
+    treebank = parse_conllu(args.input)
+
+    print("[*] Extracting sentences... ",end="\r")
+    sentences = [dt.get_sentence() for dt in treebank]
+    print("[*] Extracting sentences: Done")
+
+
+    print("[*] Extracting upos... ",end="\r")
+    postags = [dt.get_upos() for dt in treebank]
+    print("[*] Extracting upos: Done")
+
+    # Extract dataset characteristics
+    words = set([word for sentence in X for word in sentence])
+    n_words = len(words)
+    print("[*] Number of words:",n_words,"; max_length=",max_len_words)
+
+    tags = set([word for sentence in Y for word in sentence])
+    n_tags = len(tags)
+    print("[*] Number of tags:",n_tags)
+
+    chars = set([w_i for w in words for w_i in w])
+    n_chars = len(chars)
+    print("[*] Number of chars:",n_chars)
+
+    # Pre-process data
+    print("[*] Converting upos to categories... ",end="\r")
+    y, cat_tokenizer = tokenize_categories(postags, args.sent_length)
+    print("[*] Converting upos to categories: Done")
+
+
+    if args.word_mode == 'tok':
+        print("[*] Tokenizing input sentences... ",end="\r")
+        x_words, words_tokenizer = tokenize_text(sentences, args.sent_length)
+        print("[*] Tokenizing input sentences: Done")
+
+    elif args.word_mode =='vec':
+        print("[*] Creating vector layer... ",end="\r")
+        word_vectorizer = create_text_vector_layer(sentences, args.sent_length)
+        print("[*] Creating vector layer: Done")
+    
+    if args.charemb:
+        print("[*] Setting characters as indexes... ",end="\r")
+        x_chars, char2idx = index_characters(sentences, chars, args.sent_length, args.word_length)
+        print("[*] Setting characters as indexes: Done")
+
+
+    # Create model
+
 
     if args.time:
         delta_time=time.time()-start_time
