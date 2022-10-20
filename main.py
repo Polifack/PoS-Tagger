@@ -97,7 +97,7 @@ def parse_args():
 
     parser = argparse.ArgumentParser(description='PoS tagger')
     
-    parser.add_argument('operation', metavar='op',type=str, choices=["train", "predict"],
+    parser.add_argument('operation', metavar='op',type=str, choices=["train", "decode"],
                         help='Operation mode of the system.')
 
     parser.add_argument('input', metavar='in file', type=str,
@@ -133,10 +133,8 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-
-
-if __name__=="__main__":
-    args=parse_args()
+def train(args):
+    print("--> Training mode")
 
     # Read treebank and extract relevant information
     (train, test, dev) = train_split_reader(args.input)
@@ -183,7 +181,7 @@ if __name__=="__main__":
         # Create model
         print("[*] Creating seq2seq model...")
         tagger = SeqTagger(num_cats, num_words, args.sentl, args.wordl, args.hdim, args.activation, 
-                            char_embs=True, num_chars=num_chars, char_hidden_dim=args.chdim)
+                            char_embs=True, n_chars=num_chars, char_hidden_dim=args.chdim)
 
         x_tr = [x_words_tr, x_chars_tr]
         x_val = [x_words_val, x_chars_val]
@@ -207,3 +205,27 @@ if __name__=="__main__":
     
     if char_tokenizer!=None:
         save_tokenizer(args.output+"/chars_tok.tokenizer", char_tokenizer)
+
+
+def decode(args):
+    print("--> Decoding mode")
+
+    model = tf.keras.models.load_model(args.input)
+
+    if len(model.inputs == 1):
+        print("[*] Model found: no character embeddings")
+        model.summary()
+
+    if len(model.inputs == 2):
+        print("[*] Model found: character embeddings")
+        model.summary()
+
+
+if __name__=="__main__":
+    args=parse_args()
+
+    if args.operation == 'train':
+        train(args)
+    elif args.operation == 'decode':
+        decode(args)
+
