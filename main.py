@@ -204,4 +204,6 @@ if __name__=="__main__":
     tagger.save_model(args.output)
     save_tokenizer(args.output+"/word_tok.tokenizer", text_tokenizer)
     save_tokenizer(args.output+"/tags_tok.tokenizer", tag_tokenizer)
-    save_tokenizer(args.output+"/chars_tok.tokenizer", char_tokenizer)
+    
+    if char_tokenizer!=None:
+        save_tokenizer(args.output+"/chars_tok.tokenizer", char_tokenizer)
