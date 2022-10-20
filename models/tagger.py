@@ -93,6 +93,14 @@ class SeqTagger:
 
         print("[*] Starting training")
         self.history = self.model.fit(x, y, batch_size=bach_size, epochs=epochs, validation_split=val_split)
+    
+    def train_model(self, x, y, bach_size, epochs, xval, yval):
+        if self.model is None:
+            print("[*] Errror: Model has not been yet created")
+            return
+
+        print("[*] Starting training")
+        self.history = self.model.fit(x, y, batch_size=bach_size, epochs=epochs, validation_data=(xval, yval))
 
     def show_model(self):
         if self.model is None:
@@ -112,7 +120,7 @@ class SeqTagger:
         plt.show()
 
     def save_model(self, out_path):
-        self.model.save(out_path, overwrite=True)
+        self.model.save(out_path+"/model.h5", overwrite=True)
 
     def evaluate(self, test_set):
         if self.model is None:
