@@ -67,6 +67,11 @@ def train_split_reader(in_path):
 def save_tokenizer(path, tokenizer):
     with open(path, 'wb') as handle:
         pickle.dump(tokenizer, handle, protocol=pickle.HIGHEST_PROTOCOL)
+def load_tokenizer(path):
+    with open(path, 'rb') as handle:
+        tokenizer = pickle.load(handle)
+    return tokenizer
+
 def tokenize_and_pad(tokenizer, content, padding):
     X = tokenizer.texts_to_sequences(content)
     X = keras.preprocessing.sequence.pad_sequences(maxlen=padding, sequences=X, padding='post', truncating='post')
@@ -200,7 +205,7 @@ def train(args):
 
     # Save the model and the tokenizer
     tagger.save_model(args.output)
-    save_tokenizer(args.output+"/word_tok.tokenizer", text_tokenizer)
+    save_tokenizer(args.output+"/words_tok.tokenizer", text_tokenizer)
     save_tokenizer(args.output+"/tags_tok.tokenizer", tag_tokenizer)
     
     if char_tokenizer!=None:
@@ -209,16 +214,37 @@ def train(args):
 
 def decode(args):
     print("--> Decoding mode")
+    sentence = "Read the full answer ."
 
-    model = tf.keras.models.load_model(args.input)
+    # Load the data
+    model = tf.keras.models.load_model(args.input+'/model.h5')    
+    model.summary()
 
-    if len(model.inputs == 1):
-        print("[*] Model found: no character embeddings")
-        model.summary()
+    text_tokenizer = load_tokenizer(args.input+'/words_tok.tokenizer')     
+    tag_tokenizer = load_tokenizer(args.input+'/tags_tok.tokenizer')
+    
+    x_words = tokenize_and_pad(text_tokenizer, [sentence], args.sentl)
 
-    if len(model.inputs == 2):
-        print("[*] Model found: character embeddings")
-        model.summary()
+    if len(model.inputs) == 1:
+        x = x_words 
+
+    if len(model.inputs) == 2:
+        char_tokenizer = load_tokenizer(args.input+'/chars_tok.tokenizer')
+        x_chars = tokenize_and_pad_chars(char_tokenizer, [sentence], args.sentl, args.wordl)
+        x=[x_words, x_chars]
+
+    # Do the prediction
+    y = model.predict(x)
+    
+    n_words = len(sentence.split(" "))
+    unpadded_tags = y[0,  0:n_words, :]
+    tokenized_tags = np.argmax(unpadded_tags, axis=1)
+    tags = tag_tokenizer.sequences_to_texts([tokenized_tags])[0]
+
+    for a, b in zip(sentence.split(" "), tags.split(" ")):
+        print(a,b)
+
+    
 
 
 if __name__=="__main__":
