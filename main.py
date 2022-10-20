@@ -124,8 +124,8 @@ def parse_args():
     parser.add_argument('--bsize', metavar="batch_size", required=False, default=32,
                         help='Batch training size')
 
-    parser.add_argument('--charemb', required=False, default=True, action='store_true', 
-                        help='Use character embeddings layer.')
+    parser.add_argument('--wonly', required=False, default=False, action='store_true', 
+                        help='Do not use character embeddings layer.')
 
     parser.add_argument('--epochs', required=False, default=10, 
                         help='Number epochs training.')
@@ -170,7 +170,7 @@ if __name__=="__main__":
     x_words_te = tokenize_and_pad(text_tokenizer, te_words, args.sentl)
 
     # Character tokenization
-    if args.charemb:
+    if not args.wonly:
         char_tokenizer = keras.preprocessing.text.Tokenizer(char_level=True)
         char_tokenizer.fit_on_texts(tr_words+te_words+dv_words)
         num_chars = (len(char_tokenizer.word_index) + 1)
@@ -180,14 +180,25 @@ if __name__=="__main__":
         x_chars_val = tokenize_and_pad_chars(char_tokenizer, dv_sents, args.sentl, args.wordl)
         x_chars_te = tokenize_and_pad_chars(char_tokenizer, te_sents, args.sentl, args.wordl)
 
-    # Create model
-    print("[*] Creating seq2seq model...")
-    tagger = SeqTagger(num_cats, num_words, num_chars, args.sentl, args.wordl, args.hdim, args.activation, 
-                        char_embs=args.charemb, char_hidden_dim=args.chdim)
+        # Create model
+        print("[*] Creating seq2seq model...")
+        tagger = SeqTagger(num_cats, num_words, args.sentl, args.wordl, args.hdim, args.activation, 
+                            char_embs=True, num_chars=num_chars, char_hidden_dim=args.chdim)
+
+        x_tr = [x_words_tr, x_chars_tr]
+        x_val = [x_words_val, x_chars_val]
+
+    else:
+        tagger = SeqTagger(num_cats, num_words, args.sentl, args.wordl, args.hdim, args.activation, 
+                            char_embs=False, char_hidden_dim=args.chdim)
+
+        x_tr = x_words_tr
+        x_val = x_words_val
+
     tagger.build_model()
     tagger.compile_model()
     tagger.show_model()
-    tagger.train_model([x_words_tr, x_chars_tr], y_tr, args.bsize, args.epochs, [x_words_val, x_chars_val], y_val)
+    tagger.train_model(x_tr, y_tr, args.bsize, args.epochs, x_val, y_val)
 
     # Save the model and the tokenizer
     tagger.save_model(args.output)

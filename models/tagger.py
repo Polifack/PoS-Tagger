@@ -4,7 +4,7 @@ from keras import layers
 
 class SeqTagger:
 
-    def __init__(self, n_cats, n_words, n_chars, max_sent_length, max_word_length, hidden_dim, activation, char_embs=False, char_hidden_dim=-1):
+    def __init__(self, n_cats, n_words, max_sent_length, max_word_length, hidden_dim, activation, char_embs=True, n_chars=None, char_hidden_dim=-1):
         # Dataset settings
         self.max_sent_length = max_sent_length
         self.max_word_length = max_word_length
