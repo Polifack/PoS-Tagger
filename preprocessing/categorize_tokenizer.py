@@ -7,17 +7,21 @@ from keras.utils.np_utils import to_categorical
 import matplotlib.pyplot as plt
 
 def tokenize_categories(postags, max_len):
-    
+    '''
+        inputs:
+            postags: list of lists of postags
+            max_len: padding value
+        
+        outputs:
+            Y: sentences tokenize-encoded list of lists of postags
+            tag_tokenizer: tokenizer employed
+    '''
+
     # Create tokenizer and fit
     tag_tokenizer = keras.preprocessing.text.Tokenizer(oov_token="-UNK-")
     tag_tokenizer.fit_on_texts(postags)
-
-    # Encode and pad
     y_encoded = tag_tokenizer.texts_to_sequences(postags)
-    y = keras.preprocessing.sequence.pad_sequences(maxlen=max_len, sequences=y_encoded, padding='post', truncating='post')
+    Y = keras.preprocessing.sequence.pad_sequences(maxlen=max_len, sequences=y_encoded, padding='post', truncating='post')
+    Y = to_categorical(Y)
 
-    # Turn to one-hot
-    y_cat = to_categorical(y)
-    n_classes = y_cat.shape[2]
-
-    return y_cat, tag_tokenizer
+    return Y, tag_tokenizer

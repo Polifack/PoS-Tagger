@@ -1,10 +1,16 @@
+import os
+# disable tensorflow cpu warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+
 from utilities.reader import * 
 from preprocessing.categorize_tokenizer import tokenize_categories
 from preprocessing.text_tokenizer import tokenize_sentences
 from preprocessing.text_vectorizer import create_text_vector_layer
+from preprocessing.char_tokenizer import tokenize_characters
 from preprocessing.char_indexer import index_characters
 from models.tagger import SeqTagger
 
+import nltk
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
@@ -32,14 +38,26 @@ if __name__=="__main__":
     parser.add_argument('--sentl', metavar="sent_length", required=False, default=128, 
                         help="Max length of sentence allowed")
 
-    parser.add_argument('--wordl', metavar="word_length", required=False, default=20,
+    parser.add_argument('--wordl', metavar="word_length", required=False, default=16,
                         help="Max length of words allowed")
 
-    parser.add_argument('--wmode', metavar="word_mode", required=False, choices=['vec','tok'], default='tok',
-                        help='Pre-processing mode of the input text. Could be vectorizer (vec) or tokenizer (tok).')
+    parser.add_argument('--hdim', metavar='hidden_dimension',required=False,default=32,
+                        help='Hidden dimension of the sequence labeling system.')
+
+    parser.add_argument('--chdim', metavar='hidden_dimension_char',required=False,default=16,
+                        help='Hidden dimension of the character embedding.')
+    
+    parser.add_argument('--activation', metavar='activation', required=False, choices=['relu', 'softmax'], default='softmax',
+                        help='Activation function for the inference layer of the sequence labeling system')
+    
+    parser.add_argument('--bsize', metavar="batch_size", required=False, default=32,
+                        help='Batch training size')
 
     parser.add_argument('--charemb', required=False, default=True, action='store_true', 
-                        help='Use character embeddings layer')
+                        help='Use character embeddings layer.')
+
+    parser.add_argument('--epochs', required=False, default=20, 
+                        help='Number epochs training.')
             
     parser.add_argument("--time", action='store_true', required=False, 
                         help='Flag to measure decoding time.')
@@ -50,59 +68,41 @@ if __name__=="__main__":
     if args.time:
         start_time=time.time()
     
-    print("+-------------------------+")
-    # print data about system
-
 
     # Read treebank and extract relevant information
-    treebank = parse_conllu(args.input)
-
-    print("[*] Extracting sentences... ",end="\r")
-    sentences = [dt.get_sentence() for dt in treebank]
-    print("[*] Extracting sentences: Done")
-
-
-    print("[*] Extracting upos... ",end="\r")
-    postags = [dt.get_upos() for dt in treebank]
-    print("[*] Extracting upos: Done")
-   
-    words = set([word for sentence in sentences for word in sentence.split(" ")])
-    n_words = len(words)
-    print("[*] Number of words:",n_words)
-
-    tags = set([word for sentence in postags for word in sentence])
-    n_tags = len(tags)
-    print("[*] Number of tags:",n_tags)
-
-    chars = set([w_i for w in words for w_i in w])
-    n_chars = len(chars)
-    print("[*] Number of chars:",n_chars)
+    # sentences = array of sentences
+    # postags = array of array of tags
+    # words = array of array of words
+    sentences, postags, words = parse_conllu(args.input)
+    print("Total number of tagged sentences: {}".format(len(sentences)))
 
     # Pre-process data
-    print("[*] Converting upos to categories... ",end="\r")
     y, cat_tokenizer = tokenize_categories(postags, args.sentl)
-    print("[*] Converting upos to categories: Done")
+    num_cats = (len(cat_tokenizer.word_index) + 1)
+    print("[*] TAG vocabulary size =",num_cats)
 
+    x_words, words_tokenizer = tokenize_sentences(sentences, words, args.sentl)
+    num_words = (len(words_tokenizer.word_index) + 1)
+    print("[*] WORD vocabulary size =",num_words)
 
-    if args.wmode == 'tok':
-        print("[*] Tokenizing input sentences... ",end="\r")
-        x_words, words_tokenizer = tokenize_sentences(sentences, args.sentl)
-        print("[*] Tokenizing input sentences: Done")
-
-    elif args.wmode =='vec':
-        print("[*] Creating vector layer... ",end="\r")
-        word_vectorizer = create_text_vector_layer(sentences, args.sentl)
-        print("[*] Creating vector layer: Done")
-    
     if args.charemb:
-        print("[*] Setting characters as indexes... ",end="\r")
-        x_chars, char2idx = index_characters(sentences, chars, args.sentl, args.wordl)
-        print("[*] Setting characters as indexes: Done")
+        x_char, char_tokenizer = tokenize_characters(sentences, args.sentl, args.wordl)
+        num_chars = (len(char_tokenizer.word_index) + 1)
+        print("[*] CHAR vocabulary size =",num_chars)
 
+
+    # get train/test split
+    x_word_tr, x_word_te, y_tr, y_te = train_test_split(x_words, y, test_size=0.1, random_state=1)
+    x_char_tr, x_char_te, _, _ = train_test_split(x_char, y, test_size=0.1, random_state=1)
 
     # Create model
     print("[*] Creating seq2seq model...")
-
+    tagger = SeqTagger(num_cats, num_words, num_chars, args.sentl, args.wordl, args.hdim, args.activation, 
+                        char_embs=args.charemb, char_hidden_dim=args.chdim)
+    tagger.build_model()
+    tagger.compile_model()
+    tagger.show_model()
+    tagger.train_model([x_word_tr, x_char_tr], y_tr, args.bsize, args.epochs, 0.1)
 
     if args.time:
         delta_time=time.time()-start_time

@@ -1,9 +1,10 @@
 import tensorflow as tf
 import keras
+from keras import layers
 
 class SeqTagger:
 
-    def __init__(self, n_cats, n_words, n_chars, max_sent_length, max_word_length, hidden_dim, activation, char_embs=False, char_hidden_dim=-1, seg_mode='tok', vec_layer=None):
+    def __init__(self, n_cats, n_words, n_chars, max_sent_length, max_word_length, hidden_dim, activation, char_embs=False, char_hidden_dim=-1):
         # Dataset settings
         self.max_sent_length = max_sent_length
         self.max_word_length = max_word_length
@@ -15,59 +16,68 @@ class SeqTagger:
         self.hidden_dim = hidden_dim
         self.char_embs = char_embs
         self.char_hidden_dim = char_hidden_dim
-        self.segmentation_mode = seg_mode
         self.activation_function = activation
-
-        # Set segmentation words input mode
-        self.seg_mode=seg_mode
-        self.vec_layer=vec_layer
         
-
         self.model = None
         self.history = None
 
     def build_model(self):
-        
         ''' Build the neural tagger according to the specified config in the initialization'''
-        print("[*] Building model")
-
+        
         # create input words layer
-        if self.seg_mode == 'tok':
-            print("[*] Creating word input layer; Input mode: Tokenization")
-            word_in = layers.Input(shape=(self.max_sent_length,))
+        word_in = layers.Input(
+                        shape=(self.max_sent_length,), 
+                        name="word_in")
 
-            emb_word = layers.Embedding(input_dim=self.n_words + 2, output_dim=self.hidden_dim,
-                                input_length=self.max_sent_length)(word_in)
-        elif self.seg_mode == 'vec':
-            print("[*] Creating word input layer; Input mode: Vectorization")
-            word_in = layers.Input(shape=(1,), dtype=tf.string)
+        emb_word = layers.Embedding(
+                        input_dim=self.n_words, 
+                        output_dim=self.hidden_dim,
+                        input_length=self.max_sent_length,
+                        name="word_emb", 
+                        mask_zero=True)(word_in)
 
-            emb_word = self.vec_layer(word_in)
-            emb_word = tf.keras.layers.Embedding(input_dim=self.n_words + 2, output_dim=self.hidden_dim,
-                                input_length=self.max_sent_length)(emb_word)
-
-        # Set input to the hidden layer (depends on character embeddings)
         if self.char_embs:
-            print("[*] Creating character embedding layer")
-            char_in = layers.Input(shape=(self.max_sent_length, self.max_word_length,))
+            char_in = layers.Input(
+                        shape=(self.max_sent_length, self.max_word_length,),
+                        name="char_in")
             
-            emb_char = layers.TimeDistributed(layers.Embedding(input_dim=self.n_chars + 2, output_dim=10,
-                                    input_length=self.max_word_length))(char_in)
+            emb_char = layers.TimeDistributed(
+                            layers.Embedding(
+                                input_dim=self.n_chars, 
+                                output_dim=self.char_hidden_dim, 
+                                input_length=self.max_word_length, 
+                                mask_zero=True), 
+                            name="char_emb")(char_in)
 
-            char_enc = layers.TimeDistributed(layers.LSTM(units=self.char_hidden_dim, return_sequences=False))(emb_char)
+            char_enc = layers.TimeDistributed(
+                            layers.LSTM(
+                                units=self.hidden_dim, 
+                                return_sequences=False), 
+                            name="char_lstm")(emb_char)
 
             model_input = [word_in, char_in]
             x = layers.concatenate([emb_word, char_enc])
+        
         else:
             model_input = word_in
             x = emb_word
 
-        # Create input layer
+        hidden_dim = layers.Bidirectional(
+                            layers.LSTM(
+                                units=self.hidden_dim, 
+                                return_sequences=True),
+                            name="bilstm")(x)
 
-        hidden_dim = layers.Bidirectional(layers.LSTM(units=self.hidden_dim, return_sequences=True))(x)
-        model_output = layers.TimeDistributed(layers.Dense(n_classes, activation=self.activation_function))(hidden_dim)
+        model_output = layers.TimeDistributed(
+                            layers.Dense(
+                                units=self.n_cats, 
+                                activation=self.activation_function), 
+                            name="inference")(hidden_dim)
 
-        self.model = keras.Model(model_input, model_out)
+        print("*** MODEL")
+        print("    max_sent_length = ",self.max_sent_length)
+        print("    max_word_length = ",self.max_word_length)
+        self.model = keras.Model(model_input, model_output)
 
     def compile_model(self, metrics=['acc'], loss='categorical_crossentropy', optimizer='adam'):
         if self.model is None:
@@ -91,13 +101,6 @@ class SeqTagger:
         print("[*] Model structure")
         self.model.summary()
 
-    def plot_model(self):
-        if self.model is None:
-            print("[*] Errror: Model has not been yet created")
-            return
-        print("[*] Model plot")
-        keras.utils.plot_model(model, "lstm_model.png", show_shapes=True)
-
     def show_history(self):
         plt.plot(self.history.history['acc'])
         plt.plot(self.history.history['val_acc'])
@@ -107,6 +110,9 @@ class SeqTagger:
         plt.xlabel('epoch')
         plt.legend(['train', 'test'], loc="lower right")
         plt.show()
+
+    def save_model(self, out_path):
+        self.model.save(out_path, overwrite=True)
 
     def evaluate(self, test_set):
         if self.model is None:
