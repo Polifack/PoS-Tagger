@@ -50,10 +50,11 @@ class SeqTagger:
                             name="char_emb")(char_in)
 
             char_enc = layers.TimeDistributed(
-                            layers.LSTM(
-                                units=self.hidden_dim, 
-                                return_sequences=False), 
-                            name="char_lstm")(emb_char)
+                            layers.Bidirectional(
+                                layers.LSTM(
+                                    units=self.hidden_dim, 
+                                    return_sequences=False), 
+                                name="char_bilstm"))(emb_char)
 
             model_input = [word_in, char_in]
             x = layers.concatenate([emb_word, char_enc])

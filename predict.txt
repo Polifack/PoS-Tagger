@@ -1,5 +1,9 @@
 Read the full answer .
 verb det adj noun x
+
 The point system is bad .
-det noun noun x adj x
-Google is a bad search engine .propn aux det adj noun noun x
+det noun noun aux adj x
+
+Google is a bad search engine .
+propn aux det adj noun noun x
+

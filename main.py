@@ -182,8 +182,9 @@ def train(args):
     y_te = to_categorical(y_te_a)
 
     # Text tokenization
+    ## should the tokenizer be fitted with train+dev+test?
     text_tokenizer = keras.preprocessing.text.Tokenizer()
-    text_tokenizer.fit_on_texts(tr_words+te_words+dv_words)                   ## should the tokenizer be fitted with train+dev+test?
+    text_tokenizer.fit_on_texts(tr_words)                   
     num_words = (len(text_tokenizer.word_index) + 1)
     print("[*] WORD vocabulary size =",num_words)
 
@@ -194,7 +195,7 @@ def train(args):
     # Character tokenization
     if not args.wonly:
         char_tokenizer = keras.preprocessing.text.Tokenizer(char_level=True)
-        char_tokenizer.fit_on_texts(tr_words+te_words+dv_words)
+        char_tokenizer.fit_on_texts(tr_sents)
         num_chars = (len(char_tokenizer.word_index) + 1)
         print("[*] CHAR vocabulary size =",num_chars)
         
