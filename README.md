@@ -63,6 +63,11 @@ python main.py
 ````
 ## Results
 
+Results of the training for the Universal Dependencies English Web Treebank
+
+## Google colab demo
+
+Google colab project explaining the system:
 
 ## Future work
 
