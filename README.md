@@ -1,12 +1,11 @@
 # PoS-Tagger
 
-Part of speech tagging system built in Keras and Python. This tagger is based on a sequence labeller model consisting on 3 layers:
+Part of speech tagging system built in Keras and Python. The architecture was inspired by [Part-of-Speech Tagging with Bidirectional Long Short-Term Memory
+Recurrent Neural Network](https://arxiv.org/pdf/1510.06168.pdf). This tagger is based on a sequence labeller model consisting on 3 layers:
 
-1) Input layer: Word tokenization and embedding + Character tokenization and embedding
-2) Hidden layer: Bi-LSTM 
-3) Inference layer: Dense with softmax (default) activation function
-
-Tested with the UD_EWT_English treebank but can read any conll-U file as input.
+1) Input layer: Word tokenization and embedding + Character tokenization and embedding.
+2) Hidden layer: Bi-LSTM layer.
+3) Inference layer: Dense with softmax (default) activation function.
 
 ## Usage:
 
