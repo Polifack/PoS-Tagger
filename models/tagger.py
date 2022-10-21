@@ -79,12 +79,17 @@ class SeqTagger:
         print("    max_word_length = ",self.max_word_length)
         self.model = keras.Model(model_input, model_output)
 
-    def compile_model(self, metrics=['acc'], loss='categorical_crossentropy', optimizer='adam'):
+    def compile_model(self, loss, optimizer, learning_rate):
         if self.model is None:
             print("[*] Errror: Model has not been yet created")
             return
         
-        self.model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+        if optimizer=='adam':
+            optim  = keras.optimizers.Adam(learning_rate)
+        elif optimizer=='sgd':
+            optim = keras.optimizers.SGD(learning_rate)
+
+        self.model.compile(optimizer=optimizer, loss=loss, metrics=['acc'])
     
     def train_model(self, x, y, bach_size, epochs, val_split):
         if self.model is None:
@@ -130,14 +135,3 @@ class SeqTagger:
         if not self.model.is_trained():
             print("[*] Error: The model has not been yet trained")
             return
-  
-    def predict(self, new_sentence):
-        if self.model is None:
-            print("[*] Errror: Model has not been yet created")
-            return
-        
-        if not self.model.is_trained():
-            print("[*] Error: The model has not been yet trained")
-            return
-
-        model.predict(new_sentence)

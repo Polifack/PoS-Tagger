@@ -105,11 +105,14 @@ def parse_args():
     parser.add_argument('operation', metavar='op',type=str, choices=["train", "decode"],
                         help='Operation mode of the system.')
 
-    parser.add_argument('input', metavar='in file', type=str,
+    parser.add_argument('--input', metavar='in file', type=str, required=True,
                         help='Path of the .conllu file to train the model or text file containing sentences to predict')
 
-    parser.add_argument('output', metavar='out file', type=str,
+    parser.add_argument('--output', metavar='out file', type=str, required=True, default=None,
                         help='Path of the output folder where to store the model in training mode or path to store the predicted text file')
+
+    parser.add_argument('--modeldir', metavar='sentence', type=str, required=False,
+                        help='Saved model and dataset directory')
 
     parser.add_argument('--sentl', metavar="sent_length", required=False, default=128, 
                         help="Max length of sentence allowed")
@@ -126,6 +129,15 @@ def parse_args():
     parser.add_argument('--activation', metavar='activation', required=False, choices=['relu', 'softmax'], default='softmax',
                         help='Activation function for the inference layer of the sequence labeling system')
     
+    parser.add_argument('--loss', metavar='loss', required=False, default='categorical_crossentropy', choices=['categorical_crossentropy'],
+                        help='keras loss function')
+
+    parser.add_argument('--lr', metavar='learning_rate', required=False, default=0.001, 
+                        help='Learning rate for the model')
+    
+    parser.add_argument('--optimizer', metavar='optim', required=False, choices=['adam','sgd'], default='adam',
+                        help='LR optimizer for the model')
+
     parser.add_argument('--bsize', metavar="batch_size", required=False, default=32,
                         help='Batch training size')
 
@@ -136,10 +148,17 @@ def parse_args():
                         help='Number epochs training.')
 
     args = parser.parse_args()
+
     return args
 
 def train(args):
     print("--> Training mode")
+
+    sentl = int(args.sentl)
+    wordl = int(args.wordl)
+    hdim  = int(args.hdim)
+    chdim = int(args.chdim)
+    
 
     # Read treebank and extract relevant information
     (train, test, dev) = train_split_reader(args.input)
@@ -154,9 +173,9 @@ def train(args):
     num_cats = (len(tag_tokenizer.word_index) + 1)
     print("[*] TAG vocabulary size =",num_cats)
     
-    y_tr_a = tokenize_and_pad(tag_tokenizer, tr_postags, args.sentl)
-    y_val_a = tokenize_and_pad(tag_tokenizer, dv_postags, args.sentl)
-    y_te_a = tokenize_and_pad(tag_tokenizer, te_postags, args.sentl)
+    y_tr_a = tokenize_and_pad(tag_tokenizer, tr_postags, sentl)
+    y_val_a = tokenize_and_pad(tag_tokenizer, dv_postags, sentl)
+    y_te_a = tokenize_and_pad(tag_tokenizer, te_postags, sentl)
     
     y_tr = to_categorical(y_tr_a)
     y_val = to_categorical(y_val_a)
@@ -168,9 +187,9 @@ def train(args):
     num_words = (len(text_tokenizer.word_index) + 1)
     print("[*] WORD vocabulary size =",num_words)
 
-    x_words_tr = tokenize_and_pad(text_tokenizer, tr_words, args.sentl)
-    x_words_val = tokenize_and_pad(text_tokenizer, dv_words, args.sentl)
-    x_words_te = tokenize_and_pad(text_tokenizer, te_words, args.sentl)
+    x_words_tr = tokenize_and_pad(text_tokenizer, tr_words, sentl)
+    x_words_val = tokenize_and_pad(text_tokenizer, dv_words, sentl)
+    x_words_te = tokenize_and_pad(text_tokenizer, te_words, sentl)
 
     # Character tokenization
     if not args.wonly:
@@ -179,29 +198,34 @@ def train(args):
         num_chars = (len(char_tokenizer.word_index) + 1)
         print("[*] CHAR vocabulary size =",num_chars)
         
-        x_chars_tr = tokenize_and_pad_chars(char_tokenizer, tr_words, args.sentl, args.wordl)
-        x_chars_val = tokenize_and_pad_chars(char_tokenizer, dv_sents, args.sentl, args.wordl)
-        x_chars_te = tokenize_and_pad_chars(char_tokenizer, te_sents, args.sentl, args.wordl)
+        x_chars_tr = tokenize_and_pad_chars(char_tokenizer, tr_words, sentl, wordl)
+        x_chars_val = tokenize_and_pad_chars(char_tokenizer, dv_sents, sentl, wordl)
+        x_chars_te = tokenize_and_pad_chars(char_tokenizer, te_sents, sentl, wordl)
 
         # Create model
         print("[*] Creating seq2seq model...")
-        tagger = SeqTagger(num_cats, num_words, args.sentl, args.wordl, args.hdim, args.activation, 
-                            char_embs=True, n_chars=num_chars, char_hidden_dim=args.chdim)
+        tagger = SeqTagger(num_cats, num_words, sentl, wordl, hdim, args.activation, 
+                            char_embs=True, n_chars=num_chars, char_hidden_dim=chdim)
 
         x_tr = [x_words_tr, x_chars_tr]
         x_val = [x_words_val, x_chars_val]
 
     else:
-        tagger = SeqTagger(num_cats, num_words, args.sentl, args.wordl, args.hdim, args.activation, 
-                            char_embs=False, char_hidden_dim=args.chdim)
+        tagger = SeqTagger(num_cats, num_words, args.sentl, args.wordl, hdim, args.activation, 
+                            char_embs=False)
 
         x_tr = x_words_tr
         x_val = x_words_val
 
     tagger.build_model()
-    tagger.compile_model()
+    
+    learning_rate = float(args.lr)
+    tagger.compile_model(args.loss, args.optimizer, learning_rate)
     tagger.show_model()
-    tagger.train_model(x_tr, y_tr, args.bsize, args.epochs, x_val, y_val)
+
+    bsize = int(args.bsize)
+    epochs = int(args.epochs)
+    tagger.train_model(x_tr, y_tr, bsize, epochs, x_val, y_val)
 
     # Save the model and the tokenizer
     tagger.save_model(args.output)
@@ -211,40 +235,42 @@ def train(args):
     if char_tokenizer!=None:
         save_tokenizer(args.output+"/chars_tok.tokenizer", char_tokenizer)
 
-
 def decode(args):
     print("--> Decoding mode")
-    sentence = "Read the full answer ."
 
-    # Load the data
-    model = tf.keras.models.load_model(args.input+'/model.h5')    
+    sentence_file = open(args.input)
+    sentences = sentence_file.readlines()
+
+    # load models and tokenizers
+    model = tf.keras.models.load_model(args.modeldir+'/model.h5')    
     model.summary()
 
-    text_tokenizer = load_tokenizer(args.input+'/words_tok.tokenizer')     
-    tag_tokenizer = load_tokenizer(args.input+'/tags_tok.tokenizer')
+    text_tokenizer = load_tokenizer(args.modeldir+'/words_tok.tokenizer')     
+    tag_tokenizer = load_tokenizer(args.modeldir+'/tags_tok.tokenizer')
+
+    if len(model.inputs) == 2:
+        char_tokenizer = load_tokenizer(args.modeldir+'/chars_tok.tokenizer')
     
-    x_words = tokenize_and_pad(text_tokenizer, [sentence], args.sentl)
+    x_words = tokenize_and_pad(text_tokenizer, sentences, args.sentl)
 
     if len(model.inputs) == 1:
         x = x_words 
 
     if len(model.inputs) == 2:
-        char_tokenizer = load_tokenizer(args.input+'/chars_tok.tokenizer')
-        x_chars = tokenize_and_pad_chars(char_tokenizer, [sentence], args.sentl, args.wordl)
+        x_chars = tokenize_and_pad_chars(char_tokenizer, sentences, args.sentl, args.wordl)
         x=[x_words, x_chars]
 
-    # Do the prediction
     y = model.predict(x)
-    
-    n_words = len(sentence.split(" "))
-    unpadded_tags = y[0,  0:n_words, :]
-    tokenized_tags = np.argmax(unpadded_tags, axis=1)
-    tags = tag_tokenizer.sequences_to_texts([tokenized_tags])[0]
 
-    for a, b in zip(sentence.split(" "), tags.split(" ")):
-        print(a,b)
+    with open(args.output, "w") as out_file:
+        for sentence, pred_tags in zip(sentences,y) :
+            n_words = len(sentence.split(" "))
+            unpadded_tags = pred_tags[0:n_words, :]
+            tokenized_tags = np.argmax(unpadded_tags, axis=1)
+            tags = tag_tokenizer.sequences_to_texts([tokenized_tags])[0]
 
-    
+            write_line = sentence+tags+"\n\n"
+            out_file.write(write_line)
 
 
 if __name__=="__main__":
