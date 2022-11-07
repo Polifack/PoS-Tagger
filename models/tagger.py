@@ -1,10 +1,13 @@
+import keras
+from keras import layers
+
 class SeqTagger:
     '''
         Generic sequence labeling model. 
         Allows for word-level embeddings or character embeddings.
     '''
 
-    def __init__(self, n_cats, n_words, max_sent_length, max_word_length, hidden_dim, activation, dropout, char_embs=False, n_chars=None, char_hidden_dim=-1):
+    def __init__(self, n_cats, n_words, max_sent_length, max_word_length, hidden_dim, activation, dropout, n_chars, char_hidden_dim):
         # Dataset settings
         self.max_sent_length = max_sent_length
         self.max_word_length = max_word_length
@@ -14,7 +17,6 @@ class SeqTagger:
         
         # Obtain data from the tagger architecture
         self.hidden_dim = hidden_dim
-        self.char_embs = char_embs
         self.char_hidden_dim = char_hidden_dim
         self.activation_function = activation
         self.dropout = dropout
@@ -25,7 +27,7 @@ class SeqTagger:
     def build_model(self):
         ''' Build the neural tagger according to the specified config in the initialization'''
         
-        # create input words layer
+        # Create input words layer
         word_in = layers.Input(
                         shape=(self.max_sent_length,), 
                         name="word_in")
@@ -37,40 +39,39 @@ class SeqTagger:
                         name="word_emb", 
                         mask_zero=True)(word_in)
 
-        if self.char_embs:
-            char_in = layers.Input(
-                        shape=(self.max_sent_length, self.max_word_length,),
-                        name="char_in")
-            
-            emb_char = layers.TimeDistributed(
-                            layers.Embedding(
-                                input_dim=self.n_chars, 
-                                output_dim=self.char_hidden_dim, 
-                                input_length=self.max_word_length, 
-                                mask_zero=True), 
-                            name="char_emb")(char_in)
-
-            char_enc = layers.TimeDistributed(
-                            layers.LSTM(
-                                    units=self.hidden_dim, 
-                                    return_sequences=False), 
-                                name="char_lstm")(emb_char)
-
-            model_input = [word_in, char_in]
-            x = layers.concatenate([emb_word, char_enc])
+        # Character embeddings
+        char_in = layers.Input(
+                    shape=(self.max_sent_length, self.max_word_length,),
+                    name="char_in")
         
-        else:
-            model_input = word_in
-            x = emb_word
+        emb_char = layers.TimeDistributed(
+                        layers.Embedding(
+                            input_dim=self.n_chars, 
+                            output_dim=self.char_hidden_dim, 
+                            input_length=self.max_word_length, 
+                            mask_zero=True), 
+                        name="char_emb")(char_in)
 
+        char_enc = layers.TimeDistributed(
+                        layers.LSTM(
+                                units=self.hidden_dim, 
+                                return_sequences=False), 
+                            name="char_lstm")(emb_char)
+
+        model_input = [word_in, char_in]
+        x = layers.concatenate([emb_word, char_enc])
+
+        # Dropout
         x = layers.SpatialDropout1D(self.dropout)(x)        
 
+        # Main lstms
         hidden_dim = layers.Bidirectional(
                             layers.LSTM(
                                 units=self.hidden_dim, 
                                 return_sequences=True),
                             name="bilstm")(x)
 
+        # Inference layer
         model_output = layers.TimeDistributed(
                             layers.Dense(
                                 units=self.n_cats, 
@@ -84,7 +85,6 @@ class SeqTagger:
         print("*** MODEL")
         print("    max_sent_length  =", self.max_sent_length)
         print("    hidden_dime      =", self.hidden_dim)
-        print("    using_char_embs  =", self.char_embs)
         print("    max_word_length  =", self.max_word_length)
         print("    char hidden_dim  =", self.char_hidden_dim)
         print("    dropout %        =", self.dropout)

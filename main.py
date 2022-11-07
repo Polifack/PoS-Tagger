@@ -143,9 +143,6 @@ def parse_args():
     parser.add_argument('--bsize', metavar="batch_size", required=False, default=32,
                         help='Batch training size')
 
-    parser.add_argument('--wonly', required=False, default=False, action='store_true', 
-                        help='Do not use character embeddings layer.')
-
     parser.add_argument('--epochs', required=False, default=10, 
                         help='Number epochs training.')
     
@@ -196,30 +193,21 @@ def train(args):
     x_words_te  = tokenize_and_pad(text_tokenizer, te_sents, sentl)
 
     # Character tokenization
-    if not args.wonly:
-        char_tokenizer = keras.preprocessing.text.Tokenizer(char_level=True, filters="")
-        char_tokenizer.fit_on_texts(tr_sents+dv_sents)
-        num_chars = (len(char_tokenizer.word_index) + 1)
-        print("[*] CHAR vocabulary size =",num_chars)
+    char_tokenizer = keras.preprocessing.text.Tokenizer(char_level=True, filters="")
+    char_tokenizer.fit_on_texts(tr_sents+dv_sents)
+    num_chars = (len(char_tokenizer.word_index) + 1)
+    print("[*] CHAR vocabulary size =",num_chars)
 
-        x_chars_tr = tokenize_and_pad_chars(char_tokenizer, tr_sents, sentl, wordl)
-        x_chars_val = tokenize_and_pad_chars(char_tokenizer, dv_sents, sentl, wordl)
-        x_chars_te = tokenize_and_pad_chars(char_tokenizer, te_sents, sentl, wordl)
-       
-        # Create model
-        print("[*] Creating seq2seq model...")
-        tagger = SeqTagger(num_cats, num_words, sentl, wordl, hdim, args.activation, args.dropout,
-                            char_embs=True, n_chars=num_chars, char_hidden_dim=chdim)
+    x_chars_tr = tokenize_and_pad_chars(char_tokenizer, tr_sents, sentl, wordl)
+    x_chars_val = tokenize_and_pad_chars(char_tokenizer, dv_sents, sentl, wordl)
+    x_chars_te = tokenize_and_pad_chars(char_tokenizer, te_sents, sentl, wordl)
+    
+    # Create model
+    print("[*] Creating seq2seq model...")
+    tagger = SeqTagger(num_cats, num_words, sentl, wordl, hdim, args.activation, args.dropout, num_chars, chdim)
 
-        x_tr = [x_words_tr, x_chars_tr]
-        x_val = [x_words_val, x_chars_val]
-
-    else:
-        tagger = SeqTagger(num_cats, num_words, sentl, wordl, hdim, args.activation, args.dropout,
-                            char_embs=False)
-
-        x_tr = x_words_tr
-        x_val = x_words_val
+    x_tr = [x_words_tr, x_chars_tr]
+    x_val = [x_words_val, x_chars_val]
 
     tagger.build_model()
     
@@ -255,17 +243,11 @@ def decode(args):
     text_tokenizer = load_tokenizer(args.modeldir+'/words_tok.tokenizer')     
     tag_tokenizer = load_tokenizer(args.modeldir+'/tags_tok.tokenizer')
 
-    if len(model.inputs) == 2:
-        char_tokenizer = load_tokenizer(args.modeldir+'/chars_tok.tokenizer')
-    
+    char_tokenizer = load_tokenizer(args.modeldir+'/chars_tok.tokenizer')
     x_words = tokenize_and_pad(text_tokenizer, sentences, args.sentl)
-
-    if len(model.inputs) == 1:
-        x = x_words 
-
-    if len(model.inputs) == 2:
-        x_chars = tokenize_and_pad_chars(char_tokenizer, sentences, args.sentl, args.wordl)
-        x=[x_words, x_chars]
+    x_chars = tokenize_and_pad_chars(char_tokenizer, sentences, args.sentl, args.wordl)
+        
+    x=[x_words, x_chars]
 
     y = model.predict(x)
 
