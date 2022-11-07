@@ -63,7 +63,9 @@ python main.py
 ````
 ## Results
 
-Results of the training for the Universal Dependencies English Web Treebank
+Results of the training for the Universal Dependencies English Web Treebank. Using 32 units hidden dimension, 16 units character dimension, 0.3 dropout and 0.02 learning rate. 
+
+![results](https://raw.githubusercontent.com/Polifack/PoS-Tagger/main/output/results.png)
 
 ## Google colab demo
 
