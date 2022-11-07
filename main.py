@@ -240,7 +240,7 @@ def train(args):
         save_tokenizer(args.output+"/chars_tok.tokenizer", char_tokenizer)
 
     # Plot
-    tagger.show_history()
+    # tagger.show_history()
 
 def decode(args):
     print("--> Decoding mode")
@@ -276,7 +276,7 @@ def decode(args):
             tokenized_tags = np.argmax(unpadded_tags, axis=1)
             tags = tag_tokenizer.sequences_to_texts([tokenized_tags])[0]
 
-            write_line = sentence+tags+"\n\n"
+            write_line = sentence+'\n'+tags+"\n"
             out_file.write(write_line)
 
 

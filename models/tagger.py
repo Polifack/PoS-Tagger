@@ -1,6 +1,3 @@
-import keras
-from keras import layers
-
 class SeqTagger:
     '''
         Generic sequence labeling model. 
@@ -153,25 +150,66 @@ class SeqTagger:
         print("[*] Model structure")
         self.model.summary()
 
-    def show_history(self, filename="history.png"):
-        plt.plot(self.history.history['acc'])
-        plt.plot(self.history.history['val_acc'])
+    def show_history(self):
+        print(self.history)
 
-        plt.title('model accuracy')
-        plt.ylabel('accuracy')
-        plt.xlabel('epoch')
-        plt.legend(['train', 'test'], loc="lower right")
-        plt.savefig()
+    def plot_history(self, save_file=False, filename="history.png"):
+        h = self.model.history.history
 
+        fig, (fig_1, fig_2) = plt.subplots(2, figsize=(15, 15))
+
+        fig_1.set_title('Accuracy')
+        fig_1.plot(h['acc'], color='blue', label='Training')
+        fig_1.plot(h['val_acc'], color='red', label='Validation')
+        fig_1.set_ylim([0, 1])
+
+        x_tr = len(h['acc'])-1
+        y_tr = h['acc'][-1]
+        text_tr = "{:.2f}".format(100*y_tr)+"%"
+
+        fig_1.annotate(text_tr,xy=(x_tr,y_tr))
+
+        x_val = len(h['val_acc'])-1
+        y_val = h['val_acc'][-1]
+        text_val = "{:.2f}".format(100*y_val)+"%"
+
+        fig_1.annotate(text_val,xy=(x_val,y_val))
+
+        fig_2.set_title('Loss')
+        fig_2.plot(h['loss'], color='blue', label='Training')
+        fig_2.plot(h['val_loss'], color='red', label='Validation')
+        fig_2.set_ylim([0, 0.5])
+
+        x_tr = len(h['loss'])-1
+        y_tr = h['loss'][-1]
+        text_tr = "{:.2f}".format(100*y_tr)+"%"
+
+        fig_2.annotate(text_tr,xy=(x_tr,y_tr))
+
+        x_val = len(h['val_loss'])-1
+        y_val = h['val_loss'][-1]
+        text_val = "{:.2f}".format(100*y_val)+"%"
+
+        fig_2.annotate(text_val,xy=(x_val,y_val))
+
+
+        fig.legend(loc='lower right')
+        fig.show()
+
+        if save_file:
+          plt.savefig(filename)
 
     def save_model(self, out_path):
         self.model.save(out_path+"/model.h5", overwrite=True)
 
     def evaluate(self, test_set):
         if self.model is None:
-            print("[*] Errror: Model has not been yet created")
+            print("[*] Error: Model has not been yet created")
             return
-        
-        if not self.model.is_trained():
-            print("[*] Error: The model has not been yet trained")
-            return
+
+        x_test, y_test = test_set
+        results = self.model.evaluate(x_test, y_test)
+        print("[*] Test loss || Test acc:", results)
+
+    def decode(self, x):
+      return self.model.predict(x_dec)
