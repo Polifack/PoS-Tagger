@@ -1,10 +1,13 @@
-import tensorflow as tf
 import keras
 from keras import layers
 
 class SeqTagger:
+    '''
+        Generic sequence labeling model. 
+        Allows for word-level embeddings or character embeddings.
+    '''
 
-    def __init__(self, n_cats, n_words, max_sent_length, max_word_length, hidden_dim, activation, char_embs=True, n_chars=None, char_hidden_dim=-1):
+    def __init__(self, n_cats, n_words, max_sent_length, max_word_length, hidden_dim, activation, dropout, char_embs=False, n_chars=None, char_hidden_dim=-1):
         # Dataset settings
         self.max_sent_length = max_sent_length
         self.max_word_length = max_word_length
@@ -17,6 +20,7 @@ class SeqTagger:
         self.char_embs = char_embs
         self.char_hidden_dim = char_hidden_dim
         self.activation_function = activation
+        self.dropout = dropout
         
         self.model = None
         self.history = None
@@ -50,11 +54,10 @@ class SeqTagger:
                             name="char_emb")(char_in)
 
             char_enc = layers.TimeDistributed(
-                            layers.Bidirectional(
-                                layers.LSTM(
+                            layers.LSTM(
                                     units=self.hidden_dim, 
                                     return_sequences=False), 
-                                name="char_bilstm"))(emb_char)
+                                name="char_lstm")(emb_char)
 
             model_input = [word_in, char_in]
             x = layers.concatenate([emb_word, char_enc])
@@ -62,6 +65,8 @@ class SeqTagger:
         else:
             model_input = word_in
             x = emb_word
+
+        x = layers.SpatialDropout1D(self.dropout)(x)        
 
         hidden_dim = layers.Bidirectional(
                             layers.LSTM(
@@ -75,38 +80,71 @@ class SeqTagger:
                                 activation=self.activation_function), 
                             name="inference")(hidden_dim)
 
+        print("*** VOCABULARY")
+        print("    chars_vocab       =", self.n_chars)
+        print("    words_vocab       =", self.n_words)
+        print("    tags_vocab        =", self.n_cats)
         print("*** MODEL")
-        print("    max_sent_length = ",self.max_sent_length)
-        print("    max_word_length = ",self.max_word_length)
+        print("    max_sent_length  =", self.max_sent_length)
+        print("    hidden_dime      =", self.hidden_dim)
+        print("    using_char_embs  =", self.char_embs)
+        print("    max_word_length  =", self.max_word_length)
+        print("    char hidden_dim  =", self.char_hidden_dim)
+        print("    dropout %        =", self.dropout)
+        print("    activation_fun   =", self.activation_function)
         self.model = keras.Model(model_input, model_output)
 
-    def compile_model(self, loss, optimizer, learning_rate):
+    def compile_model(self, loss, optimizer, learning_rate, decay=False, lr_decay=-1, decay_steps=-1):
         if self.model is None:
             print("[*] Errror: Model has not been yet created")
             return
         
+        if decay:
+          lr = tf.keras.optimizers.schedules.ExponentialDecay(
+          initial_learning_rate=learning_rate,
+          decay_steps=lr_decay,
+          decay_rate=lr_decay)
+
         if optimizer=='adam':
             optim  = keras.optimizers.Adam(learning_rate)
         elif optimizer=='sgd':
             optim = keras.optimizers.SGD(learning_rate)
 
         self.model.compile(optimizer=optimizer, loss=loss, metrics=['acc'])
+        print("*** COMPILATION")
+        print("    optimizer        =", optimizer)
+        print("    use_decay        =", decay)
+        print("    lr_decay         =", lr_decay)
+        print("    lr_decay_steps   =", decay_steps)
+        print("    loss_fucntion    =", loss)
     
-    def train_model(self, x, y, bach_size, epochs, val_split):
+    def train_model(self, x, y, batch_size, epochs, val_split, early_stop=False, patience=-1):
         if self.model is None:
             print("[*] Errror: Model has not been yet created")
             return
 
         print("[*] Starting training")
-        self.history = self.model.fit(x, y, batch_size=bach_size, epochs=epochs, validation_split=val_split)
+        print("    batch_size       =", batch_size)
+        print("    epochs           =", epochs)
+        print("    early_stop       =", early_stop)
+        print("    stop_patience    =", patience)
+        
+        self.history = self.model.fit(x, y, batch_size=batch_size, epochs=epochs, validation_split=val_split)
     
-    def train_model(self, x, y, bach_size, epochs, xval, yval):
+    def train_model(self, x, y, batch_size, epochs, xval, yval, early_stop=False, patience=-1):
         if self.model is None:
             print("[*] Errror: Model has not been yet created")
             return
+        if early_stop:
+          early_stop = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=patience)
 
         print("[*] Starting training")
-        self.history = self.model.fit(x, y, batch_size=bach_size, epochs=epochs, validation_data=(xval, yval))
+        print("    batch_size       =", batch_size)
+        print("    epochs           =", epochs)
+        print("    early_stop       =", early_stop)
+        print("    stop_patience    =", patience)
+        
+        self.history = self.model.fit(x, y, batch_size=batch_size, epochs=epochs, validation_data=(xval, yval))
 
     def show_model(self):
         if self.model is None:
@@ -115,7 +153,7 @@ class SeqTagger:
         print("[*] Model structure")
         self.model.summary()
 
-    def show_history(self):
+    def show_history(self, filename="history.png"):
         plt.plot(self.history.history['acc'])
         plt.plot(self.history.history['val_acc'])
 
@@ -123,7 +161,8 @@ class SeqTagger:
         plt.ylabel('accuracy')
         plt.xlabel('epoch')
         plt.legend(['train', 'test'], loc="lower right")
-        plt.show()
+        plt.savefig()
+
 
     def save_model(self, out_path):
         self.model.save(out_path+"/model.h5", overwrite=True)

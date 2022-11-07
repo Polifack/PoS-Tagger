@@ -16,6 +16,8 @@ import pickle
 import argparse
 import time
 
+# set padding value constant
+PAD_VAL = 0
 
 def parse_conllu(in_path):
     sentences = []
@@ -74,15 +76,15 @@ def load_tokenizer(path):
 
 def tokenize_and_pad(tokenizer, content, padding):
     X = tokenizer.texts_to_sequences(content)
-    X = keras.preprocessing.sequence.pad_sequences(maxlen=padding, sequences=X, padding='post', truncating='post')
+    X = keras.utils.pad_sequences(maxlen=padding, sequences=X, padding='post', truncating='post', value = PAD_VAL)
     return X
 def tokenize_and_pad_chars(char_tokenizer, content, padding, padding_char):
-    padding_vector = np.asarray(np.full(padding_char, 0))
+    padding_vector = np.asarray(np.full(padding_char, PAD_VAL))
     X = []
 
     for sequence in content:
         x = []
-        char_padded_sequence = tokenize_and_pad(char_tokenizer, sequence, padding_char)
+        char_padded_sequence = tokenize_and_pad(char_tokenizer, sequence.split(" "), padding_char)
         
         if len(char_padded_sequence)>=padding:
             # trim
@@ -146,6 +148,9 @@ def parse_args():
 
     parser.add_argument('--epochs', required=False, default=10, 
                         help='Number epochs training.')
+    
+    parser.add_argument('--dropout', required=False, default=0.5,
+                        help='Drop-out layer size of the model.')
 
     args = parser.parse_args()
 
@@ -158,7 +163,6 @@ def train(args):
     wordl = int(args.wordl)
     hdim  = int(args.hdim)
     chdim = int(args.chdim)
-    
 
     # Read treebank and extract relevant information
     (train, test, dev) = train_split_reader(args.input)
@@ -168,51 +172,50 @@ def train(args):
     print("Total number of tagged sentences: {}".format(len(tr_sents)))
 
     # Categories tokenization and one-hot
-    tag_tokenizer = keras.preprocessing.text.Tokenizer()
+    tag_tokenizer = keras.preprocessing.text.Tokenizer(filters="")
     tag_tokenizer.fit_on_texts(tr_postags)
     num_cats = (len(tag_tokenizer.word_index) + 1)
     print("[*] TAG vocabulary size =",num_cats)
-    
+
     y_tr_a = tokenize_and_pad(tag_tokenizer, tr_postags, sentl)
     y_val_a = tokenize_and_pad(tag_tokenizer, dv_postags, sentl)
     y_te_a = tokenize_and_pad(tag_tokenizer, te_postags, sentl)
-    
+
     y_tr = to_categorical(y_tr_a)
     y_val = to_categorical(y_val_a)
     y_te = to_categorical(y_te_a)
 
     # Text tokenization
-    ## should the tokenizer be fitted with train+dev+test?
-    text_tokenizer = keras.preprocessing.text.Tokenizer()
-    text_tokenizer.fit_on_texts(tr_words)                   
+    text_tokenizer = keras.preprocessing.text.Tokenizer(filters="", oov_token="<oov>")
+    text_tokenizer.fit_on_texts(tr_sents+dv_sents)                   
     num_words = (len(text_tokenizer.word_index) + 1)
     print("[*] WORD vocabulary size =",num_words)
 
-    x_words_tr = tokenize_and_pad(text_tokenizer, tr_words, sentl)
-    x_words_val = tokenize_and_pad(text_tokenizer, dv_words, sentl)
-    x_words_te = tokenize_and_pad(text_tokenizer, te_words, sentl)
+    x_words_tr  = tokenize_and_pad(text_tokenizer, tr_sents, sentl)
+    x_words_val = tokenize_and_pad(text_tokenizer, dv_sents, sentl)
+    x_words_te  = tokenize_and_pad(text_tokenizer, te_sents, sentl)
 
     # Character tokenization
     if not args.wonly:
-        char_tokenizer = keras.preprocessing.text.Tokenizer(char_level=True)
-        char_tokenizer.fit_on_texts(tr_sents)
+        char_tokenizer = keras.preprocessing.text.Tokenizer(char_level=True, filters="")
+        char_tokenizer.fit_on_texts(tr_sents+dv_sents)
         num_chars = (len(char_tokenizer.word_index) + 1)
         print("[*] CHAR vocabulary size =",num_chars)
-        
-        x_chars_tr = tokenize_and_pad_chars(char_tokenizer, tr_words, sentl, wordl)
+
+        x_chars_tr = tokenize_and_pad_chars(char_tokenizer, tr_sents, sentl, wordl)
         x_chars_val = tokenize_and_pad_chars(char_tokenizer, dv_sents, sentl, wordl)
         x_chars_te = tokenize_and_pad_chars(char_tokenizer, te_sents, sentl, wordl)
-
+       
         # Create model
         print("[*] Creating seq2seq model...")
-        tagger = SeqTagger(num_cats, num_words, sentl, wordl, hdim, args.activation, 
+        tagger = SeqTagger(num_cats, num_words, sentl, wordl, hdim, args.activation, args.dropout,
                             char_embs=True, n_chars=num_chars, char_hidden_dim=chdim)
 
         x_tr = [x_words_tr, x_chars_tr]
         x_val = [x_words_val, x_chars_val]
 
     else:
-        tagger = SeqTagger(num_cats, num_words, args.sentl, args.wordl, hdim, args.activation, 
+        tagger = SeqTagger(num_cats, num_words, sentl, wordl, hdim, args.activation, args.dropout,
                             char_embs=False)
 
         x_tr = x_words_tr
@@ -235,6 +238,9 @@ def train(args):
     
     if char_tokenizer!=None:
         save_tokenizer(args.output+"/chars_tok.tokenizer", char_tokenizer)
+
+    # Plot
+    tagger.show_history()
 
 def decode(args):
     print("--> Decoding mode")
