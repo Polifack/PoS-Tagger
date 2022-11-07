@@ -67,7 +67,8 @@ Results of the training for the Universal Dependencies English Web Treebank
 
 ## Google colab demo
 
-Google colab project explaining the system:
+Google colab project explaining the system and demo:
+https://colab.research.google.com/drive/1Lp1CWAq45RoY5ynYOYZVHH6scuQSPHF4
 
 ## Future work
 
