@@ -1,4 +1,6 @@
 import keras
+import pickle
+import matplotlib.pyplot as plt
 from keras import layers
 
 class SeqTagger:
@@ -7,7 +9,7 @@ class SeqTagger:
         Allows for word-level embeddings or character embeddings.
     '''
 
-    def __init__(self, n_cats, n_words, max_sent_length, max_word_length, hidden_dim, activation, dropout, n_chars, char_hidden_dim):
+    def __init__(self, n_cats=17, n_words=1000, max_sent_length=128, max_word_length=16, hidden_dim=32, activation='adam', dropout=0.3, n_chars=100, char_hidden_dim=16):
         # Dataset settings
         self.max_sent_length = max_sent_length
         self.max_word_length = max_word_length
@@ -143,6 +145,16 @@ class SeqTagger:
         
         self.history = self.model.fit(x, y, batch_size=batch_size, epochs=epochs, validation_data=(xval, yval))
 
+    def load_model(self, model_path):
+        if self.model is not None:
+            print("[*] Model already loaded")
+            return
+        else:
+            self.model = keras.models.load_model(model_path+"/model.h5")
+            with open(model_path+'/model.history', "rb") as file_pi:
+                self.model.history = pickle.load(file_pi)
+            print("[*] Model loaded from", model_path)
+    
     def show_model(self):
         if self.model is None:
             print("[*] Errror: Model has not been yet created")
@@ -154,7 +166,7 @@ class SeqTagger:
         print(self.history)
 
     def plot_history(self, save_file=False, filename="history.png"):
-        h = self.model.history.history
+        h = self.model.history
 
         fig, (fig_1, fig_2) = plt.subplots(2, figsize=(15, 15))
 
@@ -201,6 +213,8 @@ class SeqTagger:
 
     def save_model(self, out_path):
         self.model.save(out_path+"/model.h5", overwrite=True)
+        with open(out_path+"/model.history", 'wb') as file_pi:
+            pickle.dump(self.model.history.history, file_pi)
 
     def evaluate(self, test_set):
         if self.model is None:
@@ -212,4 +226,4 @@ class SeqTagger:
         print("[*] Test loss || Test acc:", results)
 
     def decode(self, x):
-      return self.model.predict(x_dec)
+      return self.model.predict(x)

@@ -1,7 +1,10 @@
 # PoS-Tagger
 
 Part of speech tagging system built in Keras and Python. The architecture was inspired by [Part-of-Speech Tagging with Bidirectional Long Short-Term Memory
-Recurrent Neural Network](https://arxiv.org/pdf/1510.06168.pdf). This tagger is based on a sequence labeller model consisting on 3 layers:
+Recurrent Neural Network](https://arxiv.org/pdf/1510.06168.pdf). This system allows both for training by including the training files in .conllu format or decode
+given sentences to obtain the part of speech tags. We also included models both in English and Spanish.
+
+This tagger architecture is based on a sequence labeller model consisting on 3 layers:
 
 1) Input layer: Word tokenization and embedding + Character tokenization and embedding.
 2) Hidden layer: Bi-LSTM layer.
@@ -61,21 +64,26 @@ python main.py
                   --output <tagged_file_path>
                   
 ````
+
+### Evaluate
+
+For a pretrained model, it shows in a graph the evolution of accuracy metric during its training for the train and validation sets
+
+````
+python main.py
+                  evaulate
+                  --input <model_path>
+                  --output <image_path>
+                  
+````
+
+
 ## Results
 
-Results of the training for the Universal Dependencies English Web Treebank. Using 32 units hidden dimension, 16 units character dimension, 0.3 dropout and 0.02 learning rate. 
+Results of the training for the UD-Spanish-GSD Treebank with a 64 units in hdim, 32 units in chdim model and a 0.3 dropout. Training was performed with Adam optimizer with 0.001 LR and a blocksize of 32 during 10 epochs. Sentence length was fixed at 128 and word length was fixed at 16.
 
-![results](https://raw.githubusercontent.com/Polifack/PoS-Tagger/main/output/results.png)
+![results_esp](https://raw.githubusercontent.com/Polifack/PoS-Tagger/main/output/esp/history.png)
 
-## Google colab demo
+Results of the training for the UD-English-EWT Treebank with a 64 units in hdim, 32 units in chdim model and a 0.3 dropout. Training was performed with Adam optimizer with 0.001 LR and a blocksize of 32 during 10 epochs. Sentence length was fixed at 128 and word length was fixed at 16.
 
-Google colab project explaining the system and demo:
-https://colab.research.google.com/drive/1Lp1CWAq45RoY5ynYOYZVHH6scuQSPHF4
-
-## Future work
-
-- Implement vectorization as input layer.
-- Add pre-trained word embeddings.
-- Implement sparse_categorical_crossentropy as loss function and as option when removing the one-hot-encoding of the tags.
-- Add more metrics than accuracy.
-- Test how the embedding of more features work (i.e. position in sentence, word depth in constituent_tree...)
+![results_eng](https://raw.githubusercontent.com/Polifack/PoS-Tagger/main/output/eng/history.png)

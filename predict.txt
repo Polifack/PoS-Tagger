@@ -1,3 +1,0 @@
-If      I     studied  more  then  I     would  pass  . 
-sconj   pron  verb     adv    adv  pron  aux    verb  punct
-

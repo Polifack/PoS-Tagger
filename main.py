@@ -3,6 +3,7 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
 from models.tagger import SeqTagger
+from models.conll_tree import ConllTree
 
 import numpy as np
 import tensorflow as tf
@@ -18,53 +19,6 @@ import time
 
 # set padding value constant
 PAD_VAL = 0
-
-def parse_conllu(in_path):
-    sentences = []
-    postags = [] 
-    words = []
-
-    in_file = open(in_path)
-
-    for i, token_tree in enumerate(parse_tree_incr(in_file)):
-        print("[*] Reading "+in_path+":"+str(i), end="\r")
-
-        current_tags = []
-        current_words = []
-        
-        data = token_tree.serialize().split('\n')
-        dependency_start_idx = 0
-        # skip info lines
-        for line in data:
-            if line[0]!="#":
-                break
-            if "# text" in line:
-                sentence = line.split("# text = ")[1]
-                sentences.append(sentence)
-            dependency_start_idx+=1
-        
-        data = data[dependency_start_idx:]
-
-        # data lines
-        for line in data:
-            # check if not valid line
-            if (len(line)<=1) or len(line.split('\t'))<10 or line[0] == "#":
-                continue
-            wid,form,lemma,upos,xpos,feats,head,deprel,deps,misc = line.split('\t')
-            current_tags.append(upos)
-            current_words.append(form)
-
-        postags.append(current_tags)
-        words.append(current_words)    
-    
-    print("[*] Reading "+in_path+": Done")
-    return sentences, postags, words
-def train_split_reader(in_path):
-    fpath_train = in_path+"/train.conllu"
-    fpath_test = in_path+"/test.conllu"
-    fpath_dev = in_path+"/dev.conllu"
-
-    return (parse_conllu(fpath_train), parse_conllu(fpath_test), parse_conllu(fpath_dev))
 
 def save_tokenizer(path, tokenizer):
     with open(path, 'wb') as handle:
@@ -104,7 +58,7 @@ def parse_args():
 
     parser = argparse.ArgumentParser(description='PoS tagger')
     
-    parser.add_argument('operation', metavar='op',type=str, choices=["train", "decode"],
+    parser.add_argument('operation', metavar='op',type=str, choices=["train", "decode", 'evaluate'],
                         help='Operation mode of the system.')
 
     parser.add_argument('--input', metavar='in file', type=str, required=True,
@@ -162,11 +116,22 @@ def train(args):
     chdim = int(args.chdim)
 
     # Read treebank and extract relevant information
-    (train, test, dev) = train_split_reader(args.input)
-    tr_sents, tr_postags, tr_words = train
-    te_sents, te_postags, te_words = test
-    dv_sents, dv_postags, dv_words = dev
-    print("Total number of tagged sentences: {}".format(len(tr_sents)))
+    test  = ConllTree.read_conllu_file(args.input+"/test.conllu")
+    dev   = ConllTree.read_conllu_file(args.input+"/dev.conllu")
+    train = ConllTree.read_conllu_file(args.input+"/train.conllu")
+
+    tr_sents   = [t.get_sentence() for t in train]
+    tr_postags = [t.get_postags() for t in train]
+
+    te_sents = [t.get_sentence() for t in test]
+    te_postags = [t.get_postags() for t in test]
+
+    dv_sents = [t.get_sentence() for t in dev]
+    dv_postags = [t.get_postags() for t in dev]
+
+    print("Total number of TRAIN tagged sentences: {}".format(len(tr_sents)))
+    print("Total number of DEV tagged sentences: {}".format(len(dv_sents)))
+    print("Total number of TEST tagged sentences: {}".format(len(te_sents)))
 
     # Categories tokenization and one-hot
     tag_tokenizer = keras.preprocessing.text.Tokenizer(filters="")
@@ -223,12 +188,16 @@ def train(args):
     tagger.save_model(args.output)
     save_tokenizer(args.output+"/words_tok.tokenizer", text_tokenizer)
     save_tokenizer(args.output+"/tags_tok.tokenizer", tag_tokenizer)
-    
-    if char_tokenizer!=None:
-        save_tokenizer(args.output+"/chars_tok.tokenizer", char_tokenizer)
+    save_tokenizer(args.output+"/chars_tok.tokenizer", char_tokenizer)
 
-    # Plot
-    # tagger.show_history()
+def evaluate(args):
+    # read model from file
+    print("--> Evaluation mode")
+    tagger = SeqTagger()
+    tagger.load_model(args.input)
+
+    # plot model and save it
+    tagger.plot_history(True, args.output)
 
 def decode(args):
     print("--> Decoding mode")
@@ -269,4 +238,5 @@ if __name__=="__main__":
         train(args)
     elif args.operation == 'decode':
         decode(args)
-
+    elif args.operation == 'evaluate':
+        evaluate(args)
