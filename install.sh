@@ -7,7 +7,6 @@ conda activate pos_tagger
 echo "[*] Installing Python libraries"
 python -m pip install tensorflow
 python -m pip install keras
-python -m pip install conllu
 python -m pip install scikit-learn
 python -m pip install matplotlib
 

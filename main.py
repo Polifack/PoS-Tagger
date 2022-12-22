@@ -8,14 +8,11 @@ from models.conll_tree import ConllTree
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from keras import layers
 from keras.utils.np_utils import to_categorical
-from conllu import parse_tree_incr
 import matplotlib.pyplot as plt
 import pickle
 
 import argparse
-import time
 
 # set padding value constant
 PAD_VAL = 0
